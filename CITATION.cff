@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use AegisServe, please cite this software and the specific archived release."
+title: "AegisServe: Secure Multi-Agent LLM Serving Benchmark"
+type: software
+authors:
+  - family-names: Kumar
+    given-names: Shivam
+version: 0.1.0
+date-released: 2026-08-25
+license: Apache-2.0
+repository-code: "https://github.com/shivam2003-dev/secure-multi-agent-llm-serving"
+url: "https://github.com/shivam2003-dev/secure-multi-agent-llm-serving"
+abstract: >-
+  A reproducible benchmark and systems prototype for evaluating speculative decoding,
+  batching, KV caching, resource scheduling, failure recovery, and tenant isolation under
+  multi-agent LLM workflow workloads in distributed cloud environments.
+keywords:
+  - large language model serving
+  - multi-agent systems
+  - distributed inference
+  - KV cache
+  - multi-tenancy
+  - failure recovery

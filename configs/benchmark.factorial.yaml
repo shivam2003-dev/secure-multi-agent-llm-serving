@@ -1,0 +1,59 @@
+schema_version: "1.0"
+
+benchmark:
+  name: aegisserve-main-study
+  seed: 2026
+
+engine:
+  model: meta-llama/Llama-3.1-8B-Instruct
+  endpoints:
+    - http://aegis-vllm-a:8000
+    - http://aegis-vllm-b:8000
+  timeout_s: 180
+
+workload:
+  workflows: 1000
+  topology: debate
+  agents: 4
+  debate_rounds: 3
+  tenants: 16
+  tenant_distribution: zipf
+  arrival_pattern: bursty
+  request_rate: 12.0
+  prompt_tokens: [512, 4096]
+  output_tokens: [64, 512]
+  shared_prefix_ratio: 0.50
+
+mechanisms:
+  speculative_decoding:
+    enabled: true
+    method: draft_model
+    draft_model: meta-llama/Llama-3.2-1B-Instruct
+    speculative_tokens: 5
+  batching:
+    enabled: true
+    mode: continuous
+    client_max_concurrency: 256
+    max_num_batched_tokens: 16384
+  kv_cache:
+    enabled: true
+    prefix_caching: true
+    tiers: [gpu, cpu, remote]
+  resource_scheduling:
+    policy: workflow_cache_fair
+    preemption: true
+  failure_recovery:
+    enabled: true
+    checkpoint: kv_incremental
+    fault_types: [replica_crash, node_loss, network_delay]
+  multi_tenancy_security:
+    cache_isolation: per_tenant_salt
+    encrypted_transport: true
+    tenant_rate_limits: true
+
+metrics:
+  slo:
+    ttft_ms: 2000
+    tpot_ms: 100
+    workflow_ms: 30000
+  percentiles: [50, 95, 99]

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/shivam2003-dev/secure-multi-agent-llm-serving/schemas/event.schema.json",
+  "title": "AegisBench client result event",
+  "type": "object",
+  "required": [
+    "request_id",
+    "workflow_id",
+    "tenant_id",
+    "arrival_s",
+    "start_s",
+    "end_s",
+    "prompt_tokens",
+    "output_tokens",
+    "cache_hit_tokens",
+    "cross_tenant_cache_hits",
+    "security_violations",
+    "success"
+  ],
+  "properties": {
+    "request_id": { "type": "string" },
+    "workflow_id": { "type": "string" },
+    "tenant_id": { "type": "string" },
+    "endpoint": { "type": "string" },
+    "arrival_s": { "type": "number", "minimum": 0 },
+    "start_s": { "type": "number", "minimum": 0 },
+    "first_token_s": { "type": ["number", "null"], "minimum": 0 },
+    "end_s": { "type": "number", "minimum": 0 },
+    "prompt_tokens": { "type": "integer", "minimum": 0 },
+    "output_tokens": { "type": "integer", "minimum": 0 },
+    "cache_hit_tokens": { "type": "integer", "minimum": 0 },
+    "speculative_proposed": { "type": ["integer", "null"], "minimum": 0 },
+    "speculative_accepted": { "type": ["integer", "null"], "minimum": 0 },
+    "fault_recovery_ms": { "type": ["number", "null"], "minimum": 0 },
+    "cross_tenant_cache_hits": { "type": "integer", "minimum": 0 },
+    "security_violations": { "type": "integer", "minimum": 0 },
+    "success": { "type": "boolean" },
+    "error": { "type": ["string", "null"] }
+  }
+}

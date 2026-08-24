@@ -1,0 +1,58 @@
+schema_version: "1.0"
+
+benchmark:
+  name: aegisserve-quickstart
+  seed: 2026
+
+engine:
+  model: Qwen/Qwen2.5-7B-Instruct
+  endpoints:
+    - http://127.0.0.1:8000
+  timeout_s: 120
+
+workload:
+  workflows: 24
+  topology: fan_out
+  agents: 5
+  debate_rounds: 2
+  tenants: 4
+  tenant_distribution: zipf
+  arrival_pattern: poisson
+  request_rate: 2.0
+  prompt_tokens: [256, 768]
+  output_tokens: [32, 128]
+  shared_prefix_ratio: 0.60
+
+mechanisms:
+  speculative_decoding:
+    enabled: true
+    method: draft_model
+    draft_model: Qwen/Qwen2.5-0.5B-Instruct
+    speculative_tokens: 5
+  batching:
+    enabled: true
+    mode: continuous
+    client_max_concurrency: 32
+    max_num_batched_tokens: 8192
+  kv_cache:
+    enabled: true
+    prefix_caching: true
+    tiers: [gpu, cpu]
+  resource_scheduling:
+    policy: tenant_affinity
+    preemption: true
+  failure_recovery:
+    enabled: true
+    checkpoint: request_metadata
+    fault_types: [replica_crash, node_loss, network_delay]
+  multi_tenancy_security:
+    cache_isolation: per_tenant_salt
+    encrypted_transport: true
+    tenant_rate_limits: true
+
+metrics:
+  slo:
+    ttft_ms: 1000
+    tpot_ms: 80
+    workflow_ms: 15000
+  percentiles: [50, 95, 99]

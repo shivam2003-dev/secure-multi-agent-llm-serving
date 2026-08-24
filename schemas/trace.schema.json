@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/shivam2003-dev/secure-multi-agent-llm-serving/schemas/trace.schema.json",
+  "title": "AegisBench trace request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "workflow_id",
+    "tenant_id",
+    "security_domain",
+    "agent_id",
+    "role",
+    "dependencies",
+    "arrival_s",
+    "prompt_tokens",
+    "output_tokens",
+    "shared_prefix_tokens",
+    "prefix_group",
+    "deadline_ms"
+  ],
+  "properties": {
+    "request_id": { "type": "string", "minLength": 1 },
+    "workflow_id": { "type": "string", "minLength": 1 },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "security_domain": { "type": "string", "minLength": 1 },
+    "agent_id": { "type": "string", "minLength": 1 },
+    "role": { "type": "string", "minLength": 1 },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "arrival_s": { "type": "number", "minimum": 0 },
+    "prompt_tokens": { "type": "integer", "minimum": 1 },
+    "output_tokens": { "type": "integer", "minimum": 1 },
+    "shared_prefix_tokens": { "type": "integer", "minimum": 0 },
+    "prefix_group": { "type": "string", "minLength": 1 },
+    "deadline_ms": { "type": "number", "exclusiveMinimum": 0 }
+  }
+}

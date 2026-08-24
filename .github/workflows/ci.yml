@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --extra dev --extra paper
+      - name: Lint
+        run: uv run ruff check .
+      - name: Test
+        run: uv run pytest
+      - name: Validate benchmark config
+        run: uv run aegisbench validate configs/benchmark.quick.yaml
+      - name: Rebuild white paper
+        run: uv run --extra paper python scripts/build_whitepaper.py
+      - name: Check generated white paper is committed
+        run: git diff --exit-code -- output/pdf/aegisserve-whitepaper.pdf
