@@ -6,9 +6,9 @@
 
 ## Central research question
 
-Can a tenant- and workflow-aware serving policy improve multi-agent workflow SLO goodput by
-jointly managing batching, speculative decoding, and KV locality, without weakening tenant
-isolation, fairness, or failure recovery?
+Can a reproducible benchmark reveal when tenant- and workflow-aware serving improves
+multi-agent SLO goodput - and reject that improvement when isolation, fairness, recovery,
+or observation-coverage gates fail?
 
 ## Hypotheses
 
@@ -47,7 +47,8 @@ and power limits are reported.
    prompt-sharing structure.
 2. A benchmark contract combining inference efficiency with security, fairness, and
    recovery rather than treating them as separate demonstrations.
-3. The WCF scheduling policy and ablations of each score component.
+3. An executable WCF client-admission reference policy with recorded score components and
+   ablations; no claim that workflow-aware scheduling itself is novel.
 4. A reproducible artifact with trace generation, live replay, fault/security protocols,
    raw event schemas, and publication-ready reporting.
 
@@ -61,8 +62,9 @@ speculative tokens, and cache reuse on a 7B/8B model. Establish warm-up and samp
 ### Phase 2 - Distributed scheduling
 
 Run two to eight GPU workers across at least two nodes. Compare round robin, tenant affinity,
-cache affinity, shortest predicted remaining time, and WCF. Add network bandwidth/latency
-as controlled variables.
+cache/load-only, workflow-only, fair-only, shortest predicted remaining time, and WCF. Add
+network bandwidth/latency as controlled variables. Compare concepts from Kairos, SAGA,
+Cascade, Llumnix, and FastServe where equivalent open implementations are available.
 
 ### Phase 3 - Recovery
 
@@ -86,6 +88,8 @@ from deterministic systems traces.
 - vLLM default/round-robin serving;
 - continuous batching without workflow knowledge;
 - cache-affinity scheduling inspired by distributed prefix reuse systems;
+- workflow-only and tenant-deficit-only WCF ablations;
+- SLO-budget and workflow-atomic policies when reproducible implementations are available;
 - prefill/decode disaggregation when supported;
 - Ray Serve restart/replacement behavior for infrastructure recovery;
 - global cache and strict per-tenant cache as security performance bounds.
@@ -94,15 +98,16 @@ from deterministic systems traces.
 
 The project is not a new foundation model, agent reasoning benchmark, cloud scheduler for
 all workloads, or complete confidential-computing solution. The primary artifact is an
-AI-systems serving benchmark plus one joint scheduling policy.
+AI-systems serving benchmark plus an inspectable client-admission reference policy. Engine
+batch scheduling, KV movement, and infrastructure fault mutation remain adapter work.
 
 ## Milestones
 
 | Milestone | Exit criterion |
 |---|---|
 | M1 Artifact contract | schemas, trace generator, tests, documented metrics |
-| M2 Live engine adapter | raw request and engine events join by request ID |
-| M3 WCF prototype | all baseline policies and score ablations runnable |
+| M2 Live client adapter | run/config/workflow/request IDs and hashed manifest join |
+| M3 WCF prototype | client-admission policy and score components runnable |
 | M4 Fault adapter | four fault types with exact injection/recovery timeline |
 | M5 Security study | positive control works; isolated treatment passes gate |
 | M6 Evaluation | repeated matrix, confidence intervals, no hidden exclusions |

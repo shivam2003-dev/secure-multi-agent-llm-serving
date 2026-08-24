@@ -55,7 +55,8 @@ misread as scheduling behavior.
 ### Resource scheduling
 
 - Baselines: round robin, tenant affinity, cache affinity, shortest predicted remaining time.
-- Proposed treatment: Workflow-Cache-Fair.
+- Reference treatment: Workflow-Cache-Fair client admission, with each score component
+  recorded and individually ablated.
 - Report workflow p50/p95/p99, request TTFT/TPOT, SLO goodput, cache hit ratio, utilization,
   and per-tenant Jain fairness.
 - Run under uniform and Zipf tenants and include at least one noisy-neighbor tenant.
@@ -87,11 +88,23 @@ workflow latency = max(node completion) - workflow arrival
 SLO goodput = completed workflows meeting all declared SLOs / second
 KV hit ratio = cached prompt tokens / prompt tokens
 spec acceptance = accepted draft tokens / proposed draft tokens
-Jain fairness = (sum tenant service)^2 / (N * sum tenant service^2)
+Jain fairness = (sum tenant outcome)^2 / (N * sum tenant outcome^2)
 ```
 
 With speculative decoding, streamed chunks may contain multiple tokens; TPOT and ITL are
-therefore not interchangeable. Record the exact formula and measurement point.
+therefore not interchangeable. Record the exact formula and measurement point. AegisBench
+reports Jain fairness separately for completed workflows and observed output tokens; the
+chosen tenant outcome must be named.
+
+### Observation coverage
+
+Derived metrics require the corresponding raw observation. If usage or engine cache fields
+are omitted, the value is `null`, not zero, and the summary reports coverage. A workflow can
+meet the full SLO only when it completes successfully and its workflow deadline, TTFT, and
+TPOT constraints are evaluable. Failed workflows are known SLO failures; successful but
+under-instrumented workflows are unevaluable and cannot count toward SLO goodput. Aggregate
+token totals and token throughput remain `null` unless usage coverage is complete; separate
+observed-token totals preserve the partial evidence.
 
 ## 6. Minimum experiment matrix
 
@@ -115,7 +128,8 @@ study and must use equivalent model weights, precision, kernels, request traces,
 
 ## 8. Result validity gates
 
-A run is invalid if any of these are absent: config digest; code revision; model revision;
-engine/container version; GPU and network inventory; raw client events; server counters;
-fault timeline for fault runs; warm-up policy; and seed. Failed requests remain in the
+A run is invalid if any of these are absent: run ID; config digest; code revision; model
+revision; engine/container version; GPU and network inventory; raw client events; server
+counters; fault timeline for fault runs; warm-up policy; seed; and metric observation
+coverage. Trace and event hashes must match the manifest. Failed requests remain in the
 denominator. Outliers may be explained but not silently deleted.

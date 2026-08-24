@@ -6,9 +6,12 @@ import argparse
 import asyncio
 import json
 import sys
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 from aegisbench.config import ConfigError, load_config
+from aegisbench.manifest import default_manifest_path, write_run_manifest
 from aegisbench.metrics import summarize
 from aegisbench.runner import run_trace
 from aegisbench.security import audit_timing_samples
@@ -33,6 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("config", type=Path)
     run.add_argument("--trace", type=Path, required=True)
     run.add_argument("--output", type=Path, required=True)
+    run.add_argument("--manifest", type=Path)
     run.add_argument("--time-scale", type=float, default=1.0)
 
     summary = subparsers.add_parser("summarize", help="aggregate a JSONL event log")
@@ -70,13 +74,36 @@ def main(argv: list[str] | None = None) -> None:
             }
         elif args.command == "run":
             config = load_config(args.config)
+            started_at = datetime.now(UTC)
+            run_id = str(uuid.uuid4())
             results = asyncio.run(
-                run_trace(config, args.trace, args.output, time_scale=args.time_scale)
+                run_trace(
+                    config,
+                    args.trace,
+                    args.output,
+                    time_scale=args.time_scale,
+                    run_id=run_id,
+                )
+            )
+            manifest_path = args.manifest or default_manifest_path(args.output)
+            manifest = write_run_manifest(
+                config=config,
+                config_path=args.config,
+                trace_path=args.trace,
+                events_path=args.output,
+                manifest_path=manifest_path,
+                started_at=started_at,
+                completed_at=datetime.now(UTC),
+                results=results,
+                run_id=run_id,
+                time_scale=args.time_scale,
             )
             payload = {
                 "requests": len(results),
                 "successful": sum(bool(result["success"]) for result in results),
                 "output": str(args.output),
+                "manifest": str(manifest_path),
+                "run_id": manifest["run_id"],
             }
         elif args.command == "summarize":
             payload = summarize(args.events)

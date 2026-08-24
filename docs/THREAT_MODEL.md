@@ -36,9 +36,11 @@ not claim Byzantine consensus.
 - enforce admission quotas and weighted fair service independently of client priority;
 - validate checkpoint integrity and ownership before restore;
 - redact prompts by default and record token counts or stable test identifiers instead;
+- reject endpoint URLs containing credentials, query parameters, or fragments, and never
+  serialize API keys or cache-salt secrets into the generated manifest;
 - zero or cryptographically discard private cache material when its domain is destroyed.
 
-## Explicitly out of scope for v0.1
+## Explicitly out of scope for v0.2
 
 - a malicious cloud/hypervisor administrator;
 - physical attacks and GPU power/electromagnetic side channels;

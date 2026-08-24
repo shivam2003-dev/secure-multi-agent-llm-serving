@@ -42,6 +42,13 @@ mechanisms:
   resource_scheduling:
     policy: workflow_cache_fair
     preemption: true
+    weights:
+      criticality: 0.35
+      tenant_deficit: 0.25
+      cache_locality: 0.20
+      service_cost: 0.08
+      failure_risk: 0.07
+      endpoint_load: 0.05
   failure_recovery:
     enabled: true
     checkpoint: kv_incremental

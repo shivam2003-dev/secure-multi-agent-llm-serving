@@ -7,6 +7,7 @@ import math
 import random
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from aegisbench.config import BenchmarkConfig
 
@@ -56,7 +57,7 @@ def generate_trace(config: BenchmarkConfig) -> list[TraceRequest]:
                     prompt_tokens=prompt_tokens,
                     output_tokens=output_tokens,
                     shared_prefix_tokens=shared,
-                    prefix_group=f"{tenant_id}:{role}",
+                    prefix_group=f"{config.workload.topology}:{role}",
                     deadline_ms=workflow_slo,
                 )
             )
@@ -73,17 +74,125 @@ def write_trace(requests: list[TraceRequest], output: str | Path) -> None:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
-def read_trace(path: str | Path) -> list[dict[str, object]]:
-    records: list[dict[str, object]] = []
+def read_trace(path: str | Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
     with Path(path).open(encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, start=1):
             if not line.strip():
                 continue
             try:
-                records.append(json.loads(line))
+                record = json.loads(line)
             except json.JSONDecodeError as exc:
                 raise ValueError(f"invalid JSON on line {line_number} of {path}") from exc
+            if not isinstance(record, dict):
+                raise ValueError(f"trace line {line_number} must be a JSON object")
+            records.append(record)
+    validate_trace(records)
     return records
+
+
+def validate_trace(records: list[dict[str, Any]]) -> None:
+    """Validate identity, DAG, tenant, and token invariants for a replay trace."""
+    if not records:
+        raise ValueError("trace must contain at least one request")
+    required = {
+        "request_id",
+        "workflow_id",
+        "tenant_id",
+        "security_domain",
+        "agent_id",
+        "role",
+        "dependencies",
+        "arrival_s",
+        "prompt_tokens",
+        "output_tokens",
+        "shared_prefix_tokens",
+        "prefix_group",
+        "deadline_ms",
+    }
+    by_id: dict[str, dict[str, Any]] = {}
+    for index, record in enumerate(records, start=1):
+        missing = sorted(required - record.keys())
+        if missing:
+            raise ValueError(f"trace record {index} is missing: {', '.join(missing)}")
+        if not isinstance(record["request_id"], str) or not record["request_id"]:
+            raise ValueError(f"trace record {index} has an invalid request_id")
+        request_id = record["request_id"]
+        if request_id in by_id:
+            raise ValueError(f"duplicate request_id in trace: {request_id}")
+        for field in (
+            "workflow_id",
+            "tenant_id",
+            "security_domain",
+            "agent_id",
+            "role",
+            "prefix_group",
+        ):
+            if not isinstance(record[field], str) or not record[field]:
+                raise ValueError(f"{field} for {request_id} must be a non-empty string")
+        dependencies = record["dependencies"]
+        if not isinstance(dependencies, list) or any(
+            not isinstance(value, str) or not value for value in dependencies
+        ):
+            raise ValueError(f"dependencies for {request_id} must be a list of IDs")
+        if request_id in dependencies:
+            raise ValueError(f"request {request_id} cannot depend on itself")
+        if len(set(dependencies)) != len(dependencies):
+            raise ValueError(f"dependencies for {request_id} must be unique")
+        prompt_tokens = _trace_integer(record["prompt_tokens"], request_id, "prompt_tokens", 1)
+        _trace_integer(record["output_tokens"], request_id, "output_tokens", 1)
+        shared = _trace_integer(
+            record["shared_prefix_tokens"], request_id, "shared_prefix_tokens", 0
+        )
+        if shared > prompt_tokens:
+            raise ValueError(f"shared_prefix_tokens exceeds prompt_tokens for {request_id}")
+        if (
+            not isinstance(record["arrival_s"], (int, float))
+            or isinstance(record["arrival_s"], bool)
+            or not math.isfinite(float(record["arrival_s"]))
+            or record["arrival_s"] < 0
+        ):
+            raise ValueError(f"arrival_s for {request_id} must be >= 0")
+        if (
+            not isinstance(record["deadline_ms"], (int, float))
+            or isinstance(record["deadline_ms"], bool)
+            or not math.isfinite(float(record["deadline_ms"]))
+            or record["deadline_ms"] <= 0
+        ):
+            raise ValueError(f"deadline_ms for {request_id} must be > 0")
+        by_id[request_id] = record
+
+    for request_id, record in by_id.items():
+        for dependency_id in record["dependencies"]:
+            dependency = by_id.get(dependency_id)
+            if dependency is None:
+                raise ValueError(f"unknown dependency {dependency_id} for {request_id}")
+            for field in ("workflow_id", "tenant_id", "security_domain"):
+                if dependency[field] != record[field]:
+                    raise ValueError(
+                        f"dependency {dependency_id} crosses {field} boundary for {request_id}"
+                    )
+
+    state: dict[str, int] = {}
+
+    def visit(request_id: str) -> None:
+        if state.get(request_id) == 1:
+            raise ValueError(f"cycle detected in trace at {request_id}")
+        if state.get(request_id) == 2:
+            return
+        state[request_id] = 1
+        for dependency_id in by_id[request_id]["dependencies"]:
+            visit(dependency_id)
+        state[request_id] = 2
+
+    for request_id in by_id:
+        visit(request_id)
+
+
+def _trace_integer(value: Any, request_id: str, field: str, minimum: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+        raise ValueError(f"{field} for {request_id} must be an integer >= {minimum}")
+    return value
 
 
 def _next_interarrival(config: BenchmarkConfig, rng: random.Random, index: int) -> float:

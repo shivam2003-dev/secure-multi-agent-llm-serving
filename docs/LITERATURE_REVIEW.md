@@ -14,19 +14,29 @@ hardware, models, workloads, and baselines; they are not expected AegisServe res
 | [DistServe, OSDI 2024](https://arxiv.org/abs/2401.09670) | disaggregated prefill/decode goodput | phase-aware resource baseline |
 | [Preble, 2024](https://arxiv.org/abs/2407.00023) | distributed prefix reuse plus load balance | cache-affinity scheduling baseline |
 | [DejaVu, 2024](https://arxiv.org/abs/2403.01876) | KV streaming, swapping, and replication | stateful recovery baseline |
+| [Llumnix, OSDI 2024](https://www.usenix.org/conference/osdi24/presentation/sun-biao) | live migration and dynamic rescheduling | multi-instance load/isolation baseline |
+| [FastServe, NSDI 2026](https://www.usenix.org/conference/nsdi26/presentation/wu-bingyang) | token-level preemptive scheduling | latency-oriented scheduling baseline |
 
 ## Multi-agent serving
 
-[Kairos](https://arxiv.org/abs/2508.06948) is the closest direct systems work found in the
-review. It models multi-agent workflow information for priority and memory-aware dispatch.
-AegisServe should not claim novelty for workflow-aware scheduling in general. Its proposed
-contribution is narrower: a reproducible joint benchmark and policy that includes tenant
-fairness, black-box KV isolation gates, and client-visible failure recovery alongside
-workflow latency.
+[Kairos](https://arxiv.org/abs/2508.06948) models multi-agent workflow information for
+priority and memory-aware dispatch. Recent 2026 preprints move closer still:
 
-The repository must compare WCF against a workflow-only baseline. Otherwise a positive
-result cannot show whether the cache, fairness, or failure terms add value beyond Kairos-like
-critical-path prioritization.
+- [SAGA](https://arxiv.org/abs/2605.00528) proposes workflow-atomic scheduling, agent
+  execution graphs, affinity batching, and task-level fair share.
+- [A Policy-Driven Runtime Layer for Agentic LLM Serving](https://arxiv.org/abs/2605.27744)
+  proposes an agent-aware layer between frameworks and inference engines.
+- [Cascade](https://arxiv.org/abs/2608.06557) jointly applies remaining SLO budget to
+  scheduling and hierarchical KV management while considering fairness.
+
+AegisServe therefore does not claim novelty for workflow awareness, cache-aware routing,
+fair scheduling, or SLO-budget scheduling individually. Its narrower contribution target is
+a compact open benchmark contract that tests their interactions with black-box KV isolation
+and client-visible failure recovery, plus an executable, inspectable reference policy.
+
+The repository must compare WCF against workflow-only, cache/load-only, fair-only, and simple
+round-robin/affinity baselines. Otherwise a positive result cannot show which term adds value
+relative to Kairos-, SAGA-, Cascade-, or conventional cache-aware behavior.
 
 ## KV security
 
@@ -59,10 +69,9 @@ continuity after a fault.
 
 The defensible gap is not "no one has optimized LLM inference." It is:
 
-> Existing optimizations are usually evaluated at request, token, cache, workflow, security,
-> or recovery level in isolation. We lack a compact reproducible benchmark that exposes
-> their interactions for tenant-owned multi-agent DAGs and rejects a performance win when
-> isolation, fairness, or client-visible recovery fails.
+> Can a compact reproducible artifact expose interactions among workflow scheduling, cache
+> locality, tenant fairness, SLO goodput, isolation evidence, and client-visible recovery -
+> and reject a performance win when observation coverage or a safety gate is missing?
 
 This claim should be refreshed before paper submission because the serving literature is
 moving quickly.

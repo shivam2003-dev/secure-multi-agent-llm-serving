@@ -24,14 +24,20 @@ Workflow-Cache-Fair score is:
 score(r) = a * criticality(r)
          + b * tenant_deficit(r)
          + c * cache_locality(r)
-         - d * predicted_service_time(r)
+         - d * service_cost(r)
          - e * failure_risk(target)
+         - f * endpoint_load(target)
 ```
 
-The coefficients are configuration parameters, not learned constants. Criticality is
-derived from remaining DAG slack. Tenant deficit implements weighted fair service. Cache
-locality estimates avoided prefill tokens. Failure risk prevents state concentration in a
-degraded fault domain.
+The coefficients are validated configuration parameters, not learned constants. The client
+reference implementation combines remaining critical-path work, deadline urgency, fan-out,
+and terminal-node status into criticality. Tenant deficit tracks admitted token work.
+Cache locality is a predictor based on successful prior placement, not a measured cache hit.
+Failure risk and endpoint load react to observed client outcomes and active admissions.
+
+The scheduler is work-conserving: when capacity is available, it scores every waiting
+request/endpoint pair and admits the highest score with stable trace-order tie breaking.
+Round-robin and tenant-affinity use the same ready-queue and concurrency boundary.
 
 ### 3. Inference workers
 
@@ -58,7 +64,8 @@ restart, first-token-after-recovery, duplicate-token, and workflow completion ev
 Client-observed timestamps are authoritative for TTFT and workflow latency. Engine metrics
 provide batch, KV, and speculation details. Infrastructure telemetry supplies GPU, network,
 and fault timing. Every event carries a run ID, config digest, workflow ID, tenant ID, and
-request ID so these planes can be joined without inference.
+request ID. The generated manifest binds the config, trace, event file, Git state, treatment,
+and runtime with hashes without recording API keys, cache secrets, or prompt bodies.
 
 ## Trust boundaries
 
@@ -81,10 +88,12 @@ flowchart TB
   WA --> OBS[Append-only experiment log]
 ```
 
-## v0.1 implementation boundary
+## v0.2 implementation boundary
 
-The repository currently implements configuration, trace generation, DAG-aware client
-replay with round-robin or tenant-affinity routing, metric aggregation, and timing-isolation
-analysis. WCF engine admission, cache movement, and fault injection are specified interfaces
-awaiting cluster adapters. This boundary is intentional: a local client cannot truthfully
-claim GPU scheduler behavior or fault recovery without engine and infrastructure evidence.
+The repository currently implements configuration, strict DAG validation, DAG-aware client
+replay with round-robin, tenant-affinity, and WCF admission, coverage-aware metric/SLO
+aggregation, timing-isolation analysis, and run manifests. WCF acts before the endpoint; it
+does not control engine batch composition. Cache movement, engine counters, and fault
+injection remain specified interfaces awaiting cluster adapters. A local client cannot
+truthfully claim GPU scheduler behavior or recovery without engine and infrastructure
+evidence.

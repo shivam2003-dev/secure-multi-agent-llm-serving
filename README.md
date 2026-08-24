@@ -57,7 +57,7 @@ The full definitions, controls, and run order are in
 Prerequisites: Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv sync --extra dev --extra paper
+uv sync --dev --extra paper
 uv run aegisbench validate configs/benchmark.quick.yaml
 uv run aegisbench generate configs/benchmark.quick.yaml --output results/trace.jsonl
 uv run pytest
@@ -74,6 +74,9 @@ uv run aegisbench summarize results/events.jsonl \
   --output results/summary.json
 ```
 
+The replay also writes `results/events.manifest.json` with the run ID, Git state, config
+digest, trace/event hashes, treatment/time scale, runtime, and observation coverage.
+
 `AEGIS_CACHE_SALT_SECRET` is HMACed with the tenant identifier. Never commit it. If the
 serving engine does not accept a `cache_salt` request field, use per-tenant cache instances
 or an adapter that preserves the same isolation invariant.
@@ -84,30 +87,46 @@ or an adapter that preserves the same isolation invariant.
 - deterministic sequential, fan-out/fan-in, and multi-round debate traces;
 - Poisson and bursty arrivals with uniform or Zipf tenant mixes;
 - dependency-aware asynchronous replay to OpenAI-compatible servers;
-- TTFT, TPOT, request throughput, workflow latency, cache, speculation, recovery,
-  isolation, and fairness aggregation;
+- executable round-robin, tenant-affinity, and Workflow-Cache-Fair client admission;
+- TTFT, TPOT, admission delay, request throughput, workflow latency, SLO attainment and
+  goodput, cache/speculation coverage, recovery, isolation, and two fairness views;
+- strict trace validation for cycles, missing dependencies, token bounds, and cross-tenant
+  or cross-workflow edges;
+- per-event run/config provenance and a secret-safe hashed run manifest;
 - cross-tenant cache timing audit with an attacker AUC gate;
 - experiment and results templates that separate observed evidence from hypotheses;
 - a rendered [white paper](output/pdf/aegisserve-whitepaper.pdf) and its
   [reviewable source](docs/WHITEPAPER.md).
 
-Fault injection and engine-level speculative/KV counters are adapter points in v0.1.
-The live replay client never kills infrastructure. The planned Kubernetes/Ray adapters
-must make each mutation explicit and log the exact fault time and target.
+Generated prefix groups are shared by topology and agent role, while `security_domain`
+remains tenant-specific. This makes global-cache controls capable of exercising
+cross-tenant prefix reuse without weakening the private-cache namespace.
 
-## Proposed systems contribution
+Unknown is not reported as zero: cache, speculation, and isolation summaries include
+observation coverage, and unavailable engine/security fields remain `null`. Fault injection
+and engine-level speculative/KV counters are still adapter points. The live replay client
+never kills infrastructure; planned Kubernetes/Ray adapters must log the exact mutation,
+target, and fault timeline.
 
-The proposed policy, **Workflow-Cache-Fair (WCF)**, ranks ready agent calls using:
+## Executable reference policy
+
+The **Workflow-Cache-Fair (WCF)** reference policy ranks dependency-ready agent calls and
+chooses an endpoint using:
 
 1. remaining workflow critical-path slack;
 2. tenant deficit relative to a weighted fair share;
 3. expected KV locality benefit;
-4. prefill/decode pressure and failure-domain health.
+4. predicted service cost, endpoint load, and observed endpoint failure risk.
+
+The implemented policy acts at client admission. It does not claim control over the serving
+engine's internal continuous batch. Each event records the score and all components so the
+policy can be ablated and audited.
 
 The central hypothesis is not that every optimization always helps. It is that a joint
 policy can raise SLO goodput under bursty multi-agent load while bounding isolation,
-fairness, and recovery costs. The [research plan](docs/RESEARCH_PLAN.md) defines falsifiable
-hypotheses and ablations.
+fairness, and recovery costs. WCF is a benchmark reference policy, not a claim that workflow-
+aware scheduling itself is novel. The [research plan](docs/RESEARCH_PLAN.md) defines
+falsifiable hypotheses and ablations.
 
 ## Repository map
 
@@ -116,6 +135,7 @@ configs/                 Reproducible quick and main-study configurations
 docs/                    Architecture, threat model, protocol, and white-paper source
 output/pdf/              Rendered white paper
 scripts/                 White-paper build and verification tooling
+schemas/                 Versioned trace, event, and manifest contracts
 src/aegisbench/          Trace, replay, metric, and security-audit implementation
 tests/                   Unit and contract tests
 ```
@@ -123,9 +143,9 @@ tests/                   Unit and contract tests
 ## Research integrity
 
 All numerical claims in the literature review are attributed to their original papers.
-The proposed system has no claimed performance result until a run manifest, raw event log,
-hardware inventory, software versions, and analysis output are published together. See
-[REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md).
+The project has no claimed performance result until its generated manifest and raw event
+log are augmented with engine metrics, hardware/network inventory, exact model/container
+versions, and analysis output. See [REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md).
 
 ## Contributing and citation
 

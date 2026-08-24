@@ -381,7 +381,7 @@ def _title_page(styles: dict[str, ParagraphStyle]) -> list:
         Spacer(1, 45 * mm),
         Paragraph("WHITE PAPER / RESEARCH PROPOSAL", styles["meta"]),
         Spacer(1, 3 * mm),
-        Paragraph("Version 0.1 - August 2026", styles["meta"]),
+        Paragraph("Version 0.2 - August 2026", styles["meta"]),
         Paragraph("Shivam Kumar", styles["meta"]),
         Spacer(1, 12 * mm),
         Paragraph(

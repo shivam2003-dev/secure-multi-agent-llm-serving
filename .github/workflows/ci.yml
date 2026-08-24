@@ -17,7 +17,7 @@ jobs:
         with:
           enable-cache: true
       - name: Install
-        run: uv sync --extra dev --extra paper
+        run: uv sync --dev --extra paper
       - name: Lint
         run: uv run ruff check .
       - name: Test

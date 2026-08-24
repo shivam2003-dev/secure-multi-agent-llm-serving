@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -31,6 +33,8 @@ def _number(value: Any, path: str, minimum: float = 0.0, exclusive: bool = False
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise ConfigError(f"{path} must be a number")
     parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ConfigError(f"{path} must be finite")
     if (exclusive and parsed <= minimum) or (not exclusive and parsed < minimum):
         operator = ">" if exclusive else ">="
         raise ConfigError(f"{path} must be {operator} {minimum}")
@@ -42,6 +46,12 @@ def _choice(value: Any, path: str, choices: set[str]) -> str:
         allowed = ", ".join(sorted(choices))
         raise ConfigError(f"{path} must be one of: {allowed}")
     return str(value)
+
+
+def _boolean(value: Any, path: str) -> bool:
+    if not isinstance(value, bool):
+        raise ConfigError(f"{path} must be a boolean")
+    return value
 
 
 @dataclass(frozen=True)
@@ -94,6 +104,17 @@ class BenchmarkConfig:
         endpoints = tuple(str(item).rstrip("/") for item in endpoint_values)
         if any(not endpoint.startswith(("http://", "https://")) for endpoint in endpoints):
             raise ConfigError("each engine endpoint must start with http:// or https://")
+        if any(
+            urlsplit(endpoint).username or urlsplit(endpoint).password
+            for endpoint in endpoints
+        ):
+            raise ConfigError("engine.endpoints must not embed credentials")
+        if any(urlsplit(endpoint).query or urlsplit(endpoint).fragment for endpoint in endpoints):
+            raise ConfigError(
+                "engine.endpoints must not contain query parameters or fragments"
+            )
+        if len(set(endpoints)) != len(endpoints):
+            raise ConfigError("engine.endpoints must not contain duplicates")
         model = engine_raw.get("model")
         if not isinstance(model, str) or not model.strip():
             raise ConfigError("engine.model must be a non-empty string")
@@ -148,7 +169,9 @@ class BenchmarkConfig:
         if missing:
             raise ConfigError(f"mechanisms is missing: {', '.join(missing)}")
         for mechanism in required_mechanisms:
-            _mapping(mechanisms[mechanism], f"mechanisms.{mechanism}")
+            mechanism_config = _mapping(mechanisms[mechanism], f"mechanisms.{mechanism}")
+            if "enabled" in mechanism_config:
+                _boolean(mechanism_config["enabled"], f"mechanisms.{mechanism}.enabled")
 
         isolation = mechanisms["multi_tenancy_security"].get("cache_isolation")
         _choice(
@@ -162,6 +185,36 @@ class BenchmarkConfig:
             "mechanisms.resource_scheduling.policy",
             {"round_robin", "tenant_affinity", "workflow_cache_fair"},
         )
+        _integer(
+            mechanisms["batching"].get("client_max_concurrency", 32),
+            "mechanisms.batching.client_max_concurrency",
+        )
+        weights = mechanisms["resource_scheduling"].get("weights", {})
+        if not isinstance(weights, dict):
+            raise ConfigError("mechanisms.resource_scheduling.weights must be a mapping")
+        allowed_weights = {
+            "criticality",
+            "tenant_deficit",
+            "cache_locality",
+            "service_cost",
+            "failure_risk",
+            "endpoint_load",
+        }
+        unknown_weights = sorted(set(weights) - allowed_weights)
+        if unknown_weights:
+            raise ConfigError(
+                "unknown resource-scheduling weights: " + ", ".join(unknown_weights)
+            )
+        parsed_weights = [
+            _number(value, f"mechanisms.resource_scheduling.weights.{key}")
+            for key, value in weights.items()
+        ]
+        if (
+            scheduler == "workflow_cache_fair"
+            and set(weights) == allowed_weights
+            and not any(parsed_weights)
+        ):
+            raise ConfigError("at least one workflow_cache_fair weight must be > 0")
 
         metrics = _mapping(raw.get("metrics"), "metrics")
         slo = _mapping(metrics.get("slo"), "metrics.slo")

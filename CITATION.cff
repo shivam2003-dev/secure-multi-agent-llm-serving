@@ -5,7 +5,7 @@ type: software
 authors:
   - family-names: Kumar
     given-names: Shivam
-version: 0.1.0
+version: 0.2.0
 date-released: 2026-08-25
 license: Apache-2.0
 repository-code: "https://github.com/shivam2003-dev/secure-multi-agent-llm-serving"

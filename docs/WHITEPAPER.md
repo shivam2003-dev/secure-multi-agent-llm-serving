@@ -4,7 +4,7 @@
 
 **White paper - research proposal and artifact specification**
 
-Version 0.1 - August 2026
+Version 0.2 - August 2026
 
 Shivam Kumar
 
@@ -22,16 +22,17 @@ serving policies do not represent. At the same time, the optimizations used to m
 inference economical - continuous batching, speculative decoding, and KV-cache sharing -
 interact with latency, fairness, failure recovery, and cross-tenant isolation.
 
-This white paper proposes AegisServe, an AI-systems benchmark and serving prototype that
-models a multi-agent application as a tenant-owned directed acyclic graph. Its proposed
-Workflow-Cache-Fair scheduler combines critical-path slack, fair-service deficit, cache
-locality, predicted service time, and failure-domain health. The benchmark evaluates six
-mechanism families: speculative decoding, batching, KV caching, resource scheduling,
-failure recovery, and multi-tenancy security. It measures request latency and throughput,
-but makes workflow SLO goodput, cross-tenant cache reuse, timing distinguishability,
-fairness, and client-visible recovery first-class outcomes. The artifact includes a
-deterministic DAG trace generator, an OpenAI-compatible replay client, metric aggregation,
-a cache timing-isolation audit, reproducible configurations, and strict evidence gates.
+This white paper presents AegisServe, an AI-systems benchmark and serving prototype that
+models a multi-agent application as a tenant-owned directed acyclic graph. Its executable
+Workflow-Cache-Fair (WCF) reference policy combines remaining-path criticality,
+fair-service deficit, predicted cache locality, service cost, failure risk, and endpoint
+load. The benchmark evaluates six mechanism families: speculative decoding, batching, KV
+caching, resource scheduling, failure recovery, and multi-tenancy security. It measures
+request latency and throughput, but makes workflow SLO goodput, cross-tenant cache reuse,
+timing distinguishability, fairness, and client-visible recovery first-class outcomes. The
+artifact includes a deterministic DAG trace generator, an OpenAI-compatible replay client,
+coverage-aware metric aggregation, a cache timing-isolation audit, secret-safe run
+manifests, reproducible configurations, and strict evidence gates.
 
 The central research question is whether joint workflow and tenant awareness can improve
 useful serving capacity without exchanging security or resilience for speed. AegisServe is
@@ -132,11 +133,21 @@ models and workloads [5]. Kairos directly studies multi-agent serving and propos
 aware priority scheduling plus memory-aware dispatch, reporting end-to-end latency
 reductions in its evaluated public-cloud setting [7].
 
-These systems motivate rather than eliminate the research gap. AegisServe adds a joint
-isolation and failure model, makes tenant fairness an objective, distinguishes client-visible
-workflow recovery from replica restart, and specifies positive controls for cache timing
-tests. The proposed policy must be compared against workflow-only, cache-only, and fair-only
-ablations so improvements cannot be attributed vaguely to "awareness."
+More recent work further narrows the novelty boundary. SAGA studies workflow-atomic
+scheduling for agent inference on GPU clusters [13]. A policy-driven runtime proposes an
+agent-aware observe, score, predict, and act layer for cross-cutting serving policies [14].
+Cascade applies remaining SLO budget to request scheduling and hierarchical KV management
+while preserving fairness [15]. Llumnix demonstrates request migration for dynamic LLM
+serving [16], while FastServe studies iteration-level preemptive scheduling [17]. The first
+three are recent preprints; their findings require confirmation through released artifacts
+and independent runs.
+
+These systems motivate the benchmark, but they also mean WCF is not claimed as novel merely
+for combining workflow, cache, fairness, and SLO signals. AegisServe's narrower contribution
+is an executable reference policy plus a common evidence contract that joins efficiency,
+tenant isolation, and client-visible failure recovery. WCF must be compared against
+workflow-only, cache-only, and fair-only ablations so improvements cannot be attributed
+vaguely to "awareness."
 
 ### 3.4 Failure recovery
 
@@ -191,18 +202,26 @@ WCF(r, w) = alpha * criticality(r)
           + gamma * cache_benefit(r, w)
           - delta * service_cost(r, w)
           - epsilon * failure_risk(w)
+          - zeta * endpoint_load(w)
 ```
 
-Criticality increases as remaining workflow slack shrinks. Tenant deficit measures service
-received relative to a weighted fair target. Cache benefit estimates avoided prefill work
-using matched private or explicitly public prefixes. Service cost combines predicted queue,
-prefill, and decode time. Failure risk penalizes unhealthy workers and state concentration
-within one failure domain.
+The reference implementation uses only trace metadata and prior client observations.
+Criticality combines remaining-path work, deadline urgency, fanout, and a terminal-node
+bonus. Tenant deficit is the gap between equal-share admitted work and the tenant's admitted
+service. Cache benefit is the fraction of prompt tokens predicted to share a prefix already
+resident at the endpoint, never across security domains. Service cost is requested prompt
+plus output tokens. Failure risk is the observed endpoint failure rate, and endpoint load
+is the fraction of client permits currently occupied.
 
 The score is intentionally decomposable. The evaluation removes each term, sweeps weights,
 and compares with round robin, tenant affinity, cache affinity, and shortest predicted
 remaining time. If WCF improves only because it receives a larger effective batch or a
 warmer cache, the ablations will expose that confound.
+
+This WCF implementation controls dependency-ready client admission and endpoint selection.
+It does not inspect or override an inference engine's internal continuous batch. Engine
+queueing, preemption, batch composition, and physical KV placement require adapters and
+must not be inferred from client scheduling decisions.
 
 ### 4.3 Adaptive speculation and batching
 
@@ -285,12 +304,21 @@ per second. Other outcomes include output token throughput, GPU utilization, bat
 occupancy, actual cached tokens, cache transfers, draft acceptance, recomputed work,
 recovery time, Jain fairness, cross-tenant hits, and timing attack AUC.
 
+An unavailable engine signal is null, not zero. Every summary reports observation coverage
+for usage, cache, speculation, and security evidence. A successful workflow is SLO-evaluable
+only when every required request reports enough timing and token evidence to test its
+declared TTFT and TPOT constraints. Failed workflows remain known SLO failures.
+
 ### 5.4 Validity and statistics
 
-Every result point includes the configuration digest, Git revision and dirty state, model
-and tokenizer revisions, engine/container version, GPU and network inventory, seed, warm-up
-policy, client events, engine counters, and infrastructure metrics. Fault runs include the
-exact target and timeline. Failed requests remain in all completion and SLO denominators.
+Each run writes a sidecar manifest containing a run identifier, configuration digest, Git
+revision and dirty state, package and Python versions, seed, trace hash, event-log hash,
+model and endpoint identities, treatment allowlist, timestamps, and coverage counts. It
+does not contain environment values or prompt bodies. Model/tokenizer revisions,
+engine/container version, GPU and network inventory, engine counters, and infrastructure
+metrics must be added by the cluster adapter before a hardware performance claim is valid.
+Fault runs include the exact target and timeline. Failed requests remain in all completion
+and SLO denominators.
 
 Results are summarized across independent runs using medians and bootstrap 95 percent
 confidence intervals. Per-request samples are not treated as independent run replicates.
@@ -343,16 +371,18 @@ reporting one favorable point.
 
 ## 8. Artifact implementation
 
-The v0.1 artifact implements strict YAML validation, a stable configuration digest,
+The v0.2 artifact implements strict YAML and trace validation, stable configuration digests,
 deterministic DAG trace generation, Poisson and bursty arrivals, uniform and Zipf tenants,
-dependency-aware asynchronous replay, endpoint affinity, tenant HMAC cache salts, request
-and workflow aggregation, Jain fairness, recovery fields, and a cache timing audit.
+dependency-aware asynchronous replay, round-robin and tenant-affinity baselines, executable
+WCF client admission, tenant HMAC cache salts, coverage-aware request and workflow metrics,
+strict SLO goodput, Jain fairness, a cache timing audit, and hashed run manifests.
 
 The live runner targets OpenAI-compatible chat-completion endpoints. It records client-side
 TTFT and completion times and consumes reported usage/cached-token fields where the engine
-provides them. Speculation counters, GPU telemetry, cache-transfer metrics, WCF engine
-admission, and destructive fault injection require deployment-specific adapters. They are
-specified but not falsely simulated in the live runner.
+provides them. Unreported signals remain null and reduce the corresponding coverage count.
+Speculation counters, GPU telemetry, cache-transfer metrics, inference-engine batch control,
+and destructive fault injection require deployment-specific adapters. They are specified
+but not falsely simulated in the live runner.
 
 This separation matters for research integrity. A client can prove request timing and DAG
 completion. It cannot prove GPU batch composition, KV migration, or worker recovery without
@@ -362,8 +392,10 @@ derived, and prior-work claims separately.
 ## 9. Expected contributions and falsification
 
 A successful study would contribute: a multi-agent serving workload model that retains DAG
-and prefix structure; a benchmark joining efficiency with isolation and recovery; a WCF
-scheduler with component ablations; and a reproducible artifact for repeated cloud runs.
+and prefix structure; a benchmark joining efficiency with isolation and recovery; an
+executable WCF reference treatment with component ablations; and a reproducible,
+coverage-aware evidence contract for repeated cloud runs. It does not claim that combining
+workflow, cache, fairness, or SLO signals is independently novel.
 
 The principal hypotheses are:
 
@@ -401,11 +433,12 @@ lose the workflow's active state.
 
 AegisServe proposes one integrated way to study these tensions. Its benchmark makes six
 mechanism families comparable under a common DAG workload, evidence schema, and validity
-policy. Its WCF design combines criticality, fairness, cache benefit, predicted cost, and
-failure risk. Most importantly, its claims are conditional on reproducible measurement.
-The next step is not to declare the joint policy faster or safer, but to implement the
-cluster adapters, execute the preregistered matrix, and publish the raw evidence alongside
-the conclusions.
+policy. Its executable WCF reference treatment combines criticality, fairness, predicted
+cache locality, service cost, failure risk, and endpoint load at the client-admission
+boundary. Most importantly, its claims are conditional on reproducible, coverage-aware
+measurement. The next step is not to declare the joint policy faster or safer, but to
+implement the cluster adapters, execute the preregistered matrix, and publish the raw
+evidence alongside the conclusions.
 
 ## References
 
@@ -422,7 +455,7 @@ Speculative Decoding." ICML 2023. https://proceedings.mlr.press/v202/leviathan23
 Large Language Model Serving." OSDI 2024. https://arxiv.org/abs/2401.09670
 
 [5] V. Srivatsa et al. "Preble: Efficient Distributed Prompt Scheduling for LLM Serving."
-2024. https://arxiv.org/abs/2407.00023
+Preprint, 2024. https://arxiv.org/abs/2407.00023
 
 [6] F. Strati et al. "DejaVu: KV-cache Streaming for Fast, Fault-tolerant Generative LLM
 Serving." 2024. https://arxiv.org/abs/2403.01876
@@ -430,8 +463,8 @@ Serving." 2024. https://arxiv.org/abs/2403.01876
 [7] J. Chen et al. "Kairos: Low-latency Multi-Agent Serving with Shared LLMs and Excessive
 Loads in the Public Cloud." 2025. https://arxiv.org/abs/2508.06948
 
-[8] vLLM Project. "Benchmark CLI: Understanding the Latency Metrics." Accessed August
-2026. https://docs.vllm.ai/en/latest/benchmarking/cli/
+[8] vLLM Project. "Benchmark CLI: Understanding the Latency Metrics."
+Accessed August 2026. https://docs.vllm.ai/en/latest/benchmarking/cli/
 
 [9] vLLM Project. "Automatic Prefix Caching." Accessed August 2026.
 https://docs.vllm.ai/en/latest/design/prefix_caching/
@@ -444,3 +477,19 @@ Inference." Preprint, 2025. https://arxiv.org/abs/2508.08438
 
 [12] T. C. Addagada. "Governing the KV Cache: Preventing Timing Side-Channel Leakage in
 Multi-Tenant LLM Inference." Preprint, 2026. https://arxiv.org/abs/2608.09225
+
+[13] D. Guo, J. Wu, and S. M. Yiu. "SAGA: Workflow-Atomic Scheduling for AI Agent
+Inference on GPU Clusters." Preprint, 2026. https://arxiv.org/abs/2605.00528
+
+[14] R. Zhang, C. Kim, and L. Hu. "A Policy-Driven Runtime Layer for Agentic LLM
+Serving." Preprint, 2026. https://arxiv.org/abs/2605.27744
+
+[15] M. Adnan et al. "Cascade: Exploiting SLO-Aware Latency Budget for Fair and High
+Goodput LLM Inference Serving." Preprint, 2026. https://arxiv.org/abs/2608.06557
+
+[16] B. Sun et al. "Llumnix: Dynamic Scheduling for Large Language Model Serving."
+OSDI 2024. https://www.usenix.org/conference/osdi24/presentation/sun-biao
+
+[17] B. Wu et al. "FastServe: Iteration-Level Preemptive Scheduling for Large Language
+Model Inference." NSDI 2026.
+https://www.usenix.org/conference/nsdi26/presentation/wu-bingyang
