@@ -1,7 +1,7 @@
 .PHONY: install validate trace test lint paper clean
 
 install:
-	uv sync --extra dev --extra paper
+	uv sync --dev --extra paper
 
 validate:
 	uv run aegisbench validate configs/benchmark.quick.yaml

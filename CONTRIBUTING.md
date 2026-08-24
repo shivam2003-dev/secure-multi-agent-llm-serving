@@ -9,20 +9,33 @@ research discussions.
 ```bash
 git clone https://github.com/shivam2003-dev/secure-multi-agent-llm-serving.git
 cd secure-multi-agent-llm-serving
-uv sync --extra dev --extra paper
+uv sync --dev --extra paper
 uv run pytest
 uv run ruff check .
 ```
 
 ## Before opening a pull request
 
+Run the same checks CI runs (see `.github/workflows/ci.yml`), or use the `Makefile` shortcuts:
+
+```bash
+make lint      # uv run ruff check .
+make test      # uv run pytest
+make validate  # uv run aegisbench validate configs/benchmark.quick.yaml
+make paper     # rebuild the white paper
+```
+
 1. Open or reference an issue for changes to metric definitions, event schemas, threat-model
    scope, or experimental methodology.
 2. Add tests for behavior changes and keep deterministic seeds in fixtures.
-3. Run config validation, lint, tests, and the white-paper build.
+3. Run config validation, lint, tests, and the white-paper build. If the white paper changed,
+   commit the regenerated `output/pdf/aegisserve-whitepaper.pdf` — CI fails on an out-of-date
+   PDF.
 4. Explain the evidence boundary: measured, derived, simulated, hypothesis, or prior work.
 5. Do not commit model credentials, cloud secrets, private prompts, customer traces, or
    generated results that cannot be audited.
+6. Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `ci:`,
+   `docs:`, ...) for commit subjects, matching the existing history.
 
 ## Research-result contributions
 
@@ -46,3 +59,8 @@ published, contribute the generator and distribution parameters instead.
 
 Do not open a public issue for a vulnerability that could expose tenant data or credentials.
 Follow `SECURITY.md`.
+
+## License
+
+By contributing, you agree your contributions are licensed under the project's
+[Apache-2.0 license](LICENSE).
