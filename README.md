@@ -63,6 +63,9 @@ uv run aegisbench generate configs/benchmark.quick.yaml --output results/trace.j
 uv run pytest
 ```
 
+Equivalent `make install`, `make validate`, `make trace`, `make test` targets are in the
+[Makefile](Makefile); see [CONTRIBUTING.md](CONTRIBUTING.md) for the full pre-PR checklist.
+
 Replay the generated DAG against one or more OpenAI-compatible inference endpoints:
 
 ```bash
